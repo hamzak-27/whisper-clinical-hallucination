@@ -42,7 +42,7 @@ def main():
             words += [(w.word, w.start, w.end) for w in (s.words or [])]
         c = score_session(r["segments"], words)
         f.write(json.dumps({"id": r["id"], "kind": r["kind"], "gap": r["gap"], "voice": r["voice"],
-                            "hyp": " ".join(texts), "rtf": (time.time() - t0) / r["dur"], **c}) + "\n"); f.flush()
+                            "hyp": " ".join(texts), "words": words, "rtf": (time.time() - t0) / r["dur"], **c}) + "\n"); f.flush()
 
 
 if __name__ == "__main__":

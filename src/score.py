@@ -53,7 +53,8 @@ def score_session(ref_segments, hyp_words):
     for w, st, en in hyp_words:
         for n in normalize(w).split():
             hyp_tok.append(n); hyp_time.append((st + en) / 2)
-    gaps = [(s["start"], s["end"]) for s in ref_segments if s["type"] == "gap"]
+    TOL = 0.5  # seconds; ignore timestamp drift at gap edges
+    gaps = [(s["start"] + TOL, s["end"] - TOL) for s in ref_segments if s["type"] == "gap" and s["end"] - s["start"] > 2 * TOL]
     in_gap = lambda t: any(a <= t <= b for a, b in gaps)
 
     c = {"ref_words": len(ref_tok), "hyp_words": len(hyp_tok), "S": 0, "D": 0, "I": 0,
@@ -78,9 +79,10 @@ def score_session(ref_segments, hyp_words):
             for j in range(ch.hyp_start_idx, ch.hyp_end_idx):
                 g = in_gap(hyp_time[j]); m = is_medical(hyp_tok[j])
                 c["I"] += ch.type == "insert"; c["ins_medical"] += (ch.type == "insert") and m
-                # fabrication = any unmatched hyp word whose timestamp lies in a non-speech gap
-                c["ins_in_gap"] += g; c["ins_medical_in_gap"] += g and m
-                if g or ch.type == "insert": c["fab_tokens"].append(hyp_tok[j])
+                # fabrication = inserted hyp word (no reference counterpart) timestamped inside a gap
+                ins = ch.type == "insert"
+                c["ins_in_gap"] += g and ins; c["ins_medical_in_gap"] += g and ins and m
+                if ins: c["fab_tokens"].append(hyp_tok[j])
     return c
 
 

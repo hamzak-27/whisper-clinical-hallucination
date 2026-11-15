@@ -25,3 +25,19 @@ Caveats:
 - The DRUG error rate (60–73%) is mostly **spelling** ("Montalucas", "asethromycin"), and possibly also Kokoro mispronouncing drug names. Since fixed: drug-level metrics now use fuzzy matching, so spelling errors are counted separately from wrong, missing or duplicated orders.
 - Gap fabrication at 1 s gaps is partly word-timestamp spill-over. Report gaps of 5 s or more as primary.
 
+
+## 2026-11-15: Pilot 1 complete (default vs `condition_on_previous_text=False`)
+All 4 runs × 104 sessions. "dup order" = a dictated drug appears more often in the transcript than in the script (fuzzy-matched, so misspellings don't count).
+
+| model / preset | WER % | sessions with duplicated order (12 s gaps) | dup orders / 100 dictated (12 s) | insertions / 100 words (1 s → 12 s gaps) |
+|---|---|---|---|---|
+| base / default | 12.7 | **34.6%** | 12.1 | 3.4 → 7.6 |
+| base / no_prev | 12.2 | **0%** | 0 | 2.9 → 5.5 |
+| small / default | 11.9 | **21.2%** | 17.6 | 0.5 → 11.4 |
+| small / no_prev | 8.9 | **0%** | 0 | 1.1 → 5.5 |
+
+- **Duplicated medication orders come entirely from previous-text conditioning.** With conditioning off, they drop to zero in both models, and small's WER improves (11.9 → 8.9).
+- No duplicates occur at 1 s gaps under either preset. The effect needs long pauses.
+- **Residual insertions remain** (about 5.5 / 100 words at 12 s gaps vs 1–3 at 1 s). Examples: fragments of misrecognized drug names ("furos mined", "Onden-Cetron"), repeats at 30 s window boundaries ("three times daily. daily."), and short fillers ("You", "mmmm", "patients").
+- **Metric issue found:** the timestamp-based "gap fabrication" count overestimates under no_prev. Misrecognized *real* words get timestamps that drift into the gap and are counted as fabricated. Fix: count only true insertions (not substitutions), with a tolerance at gap edges, and store word timestamps in the results so this can be recomputed without re-running ASR.
+- No negation errors in any run. Missing drugs (12–24%) are the same across presets, so they reflect drug-name recognition or TTS pronunciation, not hallucination.
