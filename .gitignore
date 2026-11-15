@@ -1,0 +1,7 @@
+.venv/
+models/
+data/raw/
+data/clinhallu/
+__pycache__/
+*.wav
+docs/RESEARCH_BRIEF.md
