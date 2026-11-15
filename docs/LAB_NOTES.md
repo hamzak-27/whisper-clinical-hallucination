@@ -73,3 +73,22 @@ Caveats and detector notes:
 - **High variance across scripts.** Duplicated orders for large-v3 default by script: 0 / 17 / 26 / 52. Four scripts are not enough; the next step is a larger split.
 - Drug-mention detector false positive: "tug of **war and**" → *warfarin*. **No model invented a new drug name** in this pilot. The 0.27 "novel" figure for large-v3 is this artifact.
 - An earlier allergy check counted "sulfa" → "sulfur" as a loss. Recounted with prefix matching; the table uses the corrected numbers.
+
+## 2026-11-15: Text post-processing filters on the pilot (no extra GPU)
+`boh` removes stock phrases ("thank you for watching"…), using a small hand-made list in the spirit of Barański et al., not their released list. `dedup` drops a sentence that repeats one of the previous 3.
+
+12 s pauses:
+
+| model / preset | WER % | sessions with duplicated order | dup orders / 100 dictated |
+|---|---|---|---|
+| large-v3 / default | 30.0 | 50% | 52.2 |
+| large-v3 / default + boh | 29.6 | 50% | 52.2 |
+| large-v3 / default + dedup | 11.9 | 19% | 9.3 |
+| large-v3 / no_prev | 5.4 | 0% | 0 |
+| large-v3 / no_prev + boh + dedup | 5.0 | 0% | 0 |
+| turbo / default + dedup | 20.0 | 4% | 1.7 |
+| turbo / no_prev | 5.6 | 0% | 0 |
+
+- Stock-phrase filtering barely helps here. These hallucinations are clinical content, not YouTube phrases.
+- De-duplication helps but leaves large-v3 at 19% of sessions. The repeats are not always adjacent or identical (spelling varies), and it cannot bring back content the loop already deleted.
+- No filter matches simply turning off previous-text conditioning. At 1 s pauses all variants are unchanged (large-v3 ≈ 1.7% WER), so the filters cost nothing there.

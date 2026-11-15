@@ -110,14 +110,26 @@ def _best_at(toks, i, thr):
         if i + span > len(toks): break
         cand = "".join(toks[i:i + span])
         if len(cand) < 5: continue
-        for k, name in DRUG_KEYS.items():
-            sm = SequenceMatcher(None, cand, k)
-            if sm.real_quick_ratio() < thr or sm.quick_ratio() < thr: continue  # cheap upper bounds
-            r = sm.ratio()
-            if r > best[0]: best = (r, name, span)
+        r, name = _cand_best(cand, thr)
+        if r > best[0]: best = (r, name, span)
     return best
 
 
+from functools import lru_cache
+
+
+@lru_cache(maxsize=200000)
+def _cand_best(cand, thr):
+    best = (0, None)
+    for k, name in DRUG_KEYS.items():
+        sm = SequenceMatcher(None, cand, k)
+        if sm.real_quick_ratio() < thr or sm.quick_ratio() < thr: continue
+        r = sm.ratio()
+        if r > best[0]: best = (r, name)
+    return best
+
+
+@lru_cache(maxsize=50000)
 def drug_mentions(text, thr=0.695):
     """Greedy left-to-right fuzzy detection of drug mentions (handles 'on densetron', 'Montalucas').
     Look-ahead: if a match starting at the next token is better, skip the current token."""
@@ -131,7 +143,7 @@ def drug_mentions(text, thr=0.695):
             i += b[2]
         else:
             i += 1
-    return out
+    return tuple(out)
 
 
 def drug_level(ref_text, hyp_text):
