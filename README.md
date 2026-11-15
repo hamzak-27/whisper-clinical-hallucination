@@ -34,7 +34,7 @@ python run_asr.py --split pilot --model small --preset default
 python aggregate.py pilot
 ```
 
-Large models on a Colab GPU: [`notebooks/colab_large_eval.ipynb`](notebooks/colab_large_eval.ipynb)
+Large models on a GPU (Kaggle or Colab): [`notebooks/gpu_large_eval.ipynb`](notebooks/gpu_large_eval.ipynb)
 
 ## License
 
