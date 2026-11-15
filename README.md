@@ -4,18 +4,26 @@
 
 Whisper sometimes writes text that nobody said ([Koenecke et al., 2024](https://arxiv.org/abs/2402.08021)). In a medical note, that can mean an invented drug or dose in a patient record. This repo is a small, controlled benchmark for measuring that in synthetic clinical dictation.
 
-## Early finding: duplicated medication orders
+## Early findings (pilot)
 
-When a dictation has long pauses, Whisper (base and small) sometimes **copies an earlier medication order into the pause**, even when the pause is pure silence:
+When a dictation has long pauses (12 s of silence, room tone, a cough…), Whisper's default decoding **copies earlier medication orders into the pause**:
 
 ```
-Spoken (once):   "Patient takes azithromycin 250 milligrams every morning."
-Whisper-small:   ...Patient takes Azithromycin 250 milligrams every morning.
-                    Patient takes Azithromycin 250 milligrams every morning.   ← not spoken
-                    Patient takes Azithromycin 250 milligrams every morning.   ← not spoken
+Spoken (once):   "Resume montelukast 10 mg every 8 hours."  ...  "Allergic to sulfa drugs which causes hives."
+Whisper large-v3: "Resume Montelukast 10 mg every 8 hours." × 13      ← allergy statement is gone
 ```
 
-A repeated drug order looks plausible, so it is much harder to catch than generic hallucinated text. Pilot size: 4 scripts × 26 conditions. Details are in [`docs/LAB_NOTES.md`](docs/LAB_NOTES.md).
+| Whisper model | WER, 1 s pauses | WER, 12 s pauses | sessions with a duplicated drug order (12 s) | same, `condition_on_previous_text=False` |
+|---|---|---|---|---|
+| base | 10.2% | 15.1% | 35% | **0%** |
+| small | 5.3% | 18.5% | 21% | **0%** |
+| large-v3-turbo | 4.8% | 26.7% | 19% | **0%** |
+| large-v3 | **1.7%** | **30.0%** | **50%** | **0%** |
+
+- The most accurate model is the most affected.
+- Turning off previous-text conditioning removes the duplicated orders in every model (large-v3 at 12 s pauses: 30% → 5.4% WER).
+
+Pilot size: 4 scripts × 26 conditions, so treat the percentages as rough. Details: [`docs/LAB_NOTES.md`](docs/LAB_NOTES.md).
 
 ## How it works
 

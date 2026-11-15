@@ -41,3 +41,35 @@ All 4 runs × 104 sessions. "dup order" = a dictated drug appears more often in 
 - **Residual insertions remain** (about 5.5 / 100 words at 12 s gaps vs 1–3 at 1 s). Examples: fragments of misrecognized drug names ("furos mined", "Onden-Cetron"), repeats at 30 s window boundaries ("three times daily. daily."), and short fillers ("You", "mmmm", "patients").
 - **Metric issue found:** the timestamp-based "gap fabrication" count overestimates under no_prev. Misrecognized *real* words get timestamps that drift into the gap and are counted as fabricated. Fix: count only true insertions (not substitutions), with a tolerance at gap edges, and store word timestamps in the results so this can be recomputed without re-running ASR.
 - No negation errors in any run. Missing drugs (12–24%) are the same across presets, so they reflect drug-name recognition or TTS pronunciation, not hallucination.
+
+## 2026-11-15: Large models (Kaggle T4, fp16): large-v3 and large-v3-turbo
+Same pilot split, rebuilt on Kaggle from the same seeds (104 sessions per run). Metrics here don't depend on timestamps, so they compare fairly with the CPU runs.
+
+**12 s pauses:**
+
+| model / preset | WER % | ins / 100 words | sessions with duplicated order | dup orders / 100 dictated | allergy statements lost |
+|---|---|---|---|---|---|
+| base / default | 15.1 | 7.6 | 34.6% | 12.1 | 0/26 |
+| base / no_prev | 13.3 | 5.5 | 0% | 0 | 0/26 |
+| small / default | 18.5 | 11.4 | 21.2% | 17.6 | 4/26 |
+| small / no_prev | 11.7 | 5.5 | 0% | 0 | 2/26 |
+| large-v3-turbo / default | 26.7 | 21.9 | 19.2% | 11.0 | 0/26 |
+| large-v3-turbo / no_prev | **5.6** | **1.6** | 0% | 0 | 0/26 |
+| large-v3 / default | **30.0** | **26.8** | **50.0%** | **52.2** | **4/26** |
+| large-v3 / no_prev | 5.4 | 2.8 | 0% | 0 | 0/26 |
+
+**1 s pauses:** large-v3 default has 1.7% WER and 0 duplicated orders. Same model and same scripts; only the pause length changes.
+
+Findings:
+- **The best model is the worst on long pauses.** large-v3 is the most accurate at 1 s pauses (1.7% WER) and the worst at 12 s pauses (30% WER, half of the sessions with duplicated orders).
+- **Duplicated orders come entirely from previous-text conditioning.** In all 4 models they drop to 0 when it is off. large-v3 WER at 12 s goes 30.0 → 5.4.
+- **Repetition loops delete real content.** Worst case (large-v3, room tone, seed 1002): "Resume Montelukast 10 mg every 8 hours" is repeated 13 times, and the spoken "Allergic to sulfa drugs which causes hives" is **missing**. All 4 large-v3 allergy losses happen this way.
+- **Invented clinical instructions** (large-v3 default, silence, seed 1001): "…Stop at a hospital and come back every two weeks." This was never dictated. Also "Increase insulin 10 units every morning" was duplicated.
+- Even with no_prev, large-v3 adds "Thank you for watching." in the trailing pause (room tone, seed 1002). The classic hallucination remains, but it is rare.
+- Noise type: room tone (18 duplicated orders) and breathing (17) are worst for large-v3 default; mouse clicks (0) are least harmful. With n = 4 per cell, this ranking is not reliable yet.
+- Stricter timestamp metric (GPU runs only), sessions with invented words inside pauses, default → no_prev: large-v3 58% → 31%, turbo 48% → 6%.
+
+Caveats and detector notes:
+- **High variance across scripts.** Duplicated orders for large-v3 default by script: 0 / 17 / 26 / 52. Four scripts are not enough; the next step is a larger split.
+- Drug-mention detector false positive: "tug of **war and**" → *warfarin*. **No model invented a new drug name** in this pilot. The 0.27 "novel" figure for large-v3 is this artifact.
+- An earlier allergy check counted "sulfa" → "sulfur" as a loss. Recounted with prefix matching; the table uses the corrected numbers.
