@@ -92,3 +92,29 @@ Caveats and detector notes:
 - Stock-phrase filtering barely helps here. These hallucinations are clinical content, not YouTube phrases.
 - De-duplication helps but leaves large-v3 at 19% of sessions. The repeats are not always adjacent or identical (spelling varies), and it cannot bring back content the loop already deleted.
 - No filter matches simply turning off previous-text conditioning. At 1 s pauses all variants are unchanged (large-v3 ≈ 1.7% WER), so the filters cost nothing there.
+
+## 2026-11-16: v1 part 1, large-v3 (Kaggle T4, fp16), 750 sessions
+v1 = 30 new scripts (seeds 2000–2029) × pauses {1, 3, 6, 12, 20 s} × fillers {silence, room tone, cough, breathing, keyboard}. 95% CIs are bootstrapped over scripts.
+
+| large-v3 preset | WER % [CI] | sessions with duplicated order [CI] | dup orders / 100 dictated | allergy statements lost | negation errors |
+|---|---|---|---|---|---|
+| default | 17.9 [14.6–21.1] | 17.1% [11.5–23.9] | 18.4 | 3 | 2 / 1200 |
+| default + dedup filter | 8.1 [6.6–9.7] | 6.8% [3.9–10.3] | 4.0 | – | 3 / 1200 |
+| no_prev | 3.4 [2.7–4.3] | 0.3% [0–0.8] | 0.1 | 0 | 2 / 1200 |
+| vad (Silero, default 400 ms padding) | 2.3 [1.4–3.2] | 0.7% [0–1.7] | 0.3 | 0 | **19 / 1200** |
+
+**default by pause length** (WER / sessions with duplicated order): 1 s 1.5% / 0% · 3 s 3.5% / 8.7% · 6 s 12.4% / 16.7% · 12 s 20.4% / 16.7% · **20 s 51.7% / 43.3%** (60.6 duplicated orders per 100 dictated).
+
+Findings:
+- **The pilot result replicates at scale.** Duplicated orders grow steadily with pause length and appear from 3 s on. Duplication is concentrated in some scripts: 22/30 scripts have at least one, and per-script totals range 0–43.
+- **All filler types behave alike at 20 s** (40–47% of sessions). Digital silence is as bad as noise, so the trigger is the pause plus context, not the sound.
+- **no_prev** removes almost all duplication (1 order in 750 sessions). The remaining insertions in long pauses are mostly "Thank you (for watching)" and cough onomatopoeia ("cough", "huff"). The stock-phrase filter removes these: no_prev + boh gives 2.3% WER.
+- **New invented content beyond duplication** (default):
+  - "Patient takes **ibuprofen, 15mg**." No ibuprofen was dictated (seed 2005, 12 s cough). This is the first **invented drug order**.
+  - "**Isopropanol, an antidepressant**, works on temple…" (seed 2005, 6 s room tone, trailing pause).
+  - "**The patient has been taken into emergency care and will receive treatment immediately.**" (seed 2023, 20 s breathing). The same transcript repeats the demographics line with the wrong age (68 → **60**).
+  - Drug-detector false positives in this set: 2 (seed 2008 and 2024, no drug in text).
+- **New failure mode: VAD deletes negations.** With `vad_filter=True`, "No known drug allergies" becomes **"Drug allergies."** in 11/150 sessions that contain it, all from one script/voice (seed 2005). This is a polarity flip on an allergy statement. Mechanism, checked locally on the audio: Silero starts the speech chunk ~1 s after the utterance onset, so "No known" never reaches Whisper. It holds at every pause length ≥ 3 s and for both silence and room tone. Padding of 1000 ms still clips "No". **1500 ms fixes it** in this script. Next: run the model-free onset audit (`vad_audit.py`) on all 750 sessions, and test `vad_pad` (1500 ms) in part 2.
+- Trade-off: VAD has the best WER and no repetition loops, but it introduces a rarer error that is clinically worse (negation loss). no_prev has no such cost.
+
+Caveat: the onset-clipping case depends on how this TTS voice starts the utterance (soft onset). It must be checked on real recordings (PriMock57).

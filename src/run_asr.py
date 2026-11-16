@@ -13,6 +13,8 @@ PRESETS = {
     "no_prev_t0": dict(beam_size=5, condition_on_previous_text=False, temperature=0.0),
     "vad": dict(beam_size=5, condition_on_previous_text=True, vad_filter=True),
     "vad_no_prev": dict(beam_size=5, condition_on_previous_text=False, vad_filter=True),
+    # default Silero padding (400 ms) can cut soft utterance onsets ("No known drug allergies" -> "Drug allergies.")
+    "vad_pad": dict(beam_size=5, condition_on_previous_text=True, vad_filter=True, vad_parameters=dict(speech_pad_ms=1500)),
 }
 
 
